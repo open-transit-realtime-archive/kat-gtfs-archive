@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 B2_ENDPOINT = os.environ.get('B2_ENDPOINT_URL')
 B2_KEY_ID = os.environ.get('B2_ACCESS_KEY_ID')
 B2_SECRET_KEY = os.environ.get('B2_SECRET_ACCESS_KEY')
-BUCKET_NAME = os.environ.get('B2_BUCKET_NAME', 'kat-gtfs-archive-data')
+BUCKET_NAME = os.environ.get('B2_BUCKET_NAME', 'open-transit-runtime-archive')
 
 # Load agency-specific configuration
 with open("config.json", "r", encoding="utf-8") as f:
