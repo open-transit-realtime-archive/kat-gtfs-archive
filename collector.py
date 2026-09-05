@@ -4,10 +4,11 @@ import requests
 from datetime import datetime, timezone
 from google.transit import gtfs_realtime_pb2
 
-# KAT GTFS-RT Endpoints
-VEHICLE_POS_URL = "https://Knoxville.Syncromatics.com/GTFS-rt/VehiclePositions"
-TRIP_UPDATES_URL = "https://Knoxville.Syncromatics.com/GTFS-rt/TripUpdates"
-ALERTS_URL = "https://Knoxville.Syncromatics.com/GTFS-rt/Alerts"
+# Load agency-specific configuration
+with open("config.json", "r", encoding="utf-8") as f:
+    CONFIG = json.load(f)
+
+FEEDS = CONFIG.get("feeds", {})
 
 
 def fetch_protobuf(url: str) -> gtfs_realtime_pb2.FeedMessage:
@@ -19,15 +20,17 @@ def fetch_protobuf(url: str) -> gtfs_realtime_pb2.FeedMessage:
 
 
 def save_json_snapshot(data: list | dict, filepath: str):
-    """Saves formatted, key-sorted JSON so Git diffs stay clean and minimal."""
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
 
 
 def collect_vehicle_positions(fetch_time: str) -> list[dict]:
+    url = FEEDS.get("vehicle_positions")
+    if not url:
+        return []
     try:
-        feed = fetch_protobuf(VEHICLE_POS_URL)
+        feed = fetch_protobuf(url)
     except Exception as e:
         print(f"[Error] Failed to fetch Vehicle Positions: {e}")
         return []
@@ -36,13 +39,11 @@ def collect_vehicle_positions(fetch_time: str) -> list[dict]:
     for entity in feed.entity:
         if entity.HasField("vehicle"):
             v = entity.vehicle
-            
             timestamp = (
                 datetime.fromtimestamp(v.timestamp, tz=timezone.utc).isoformat()
                 if v.timestamp > 0
                 else fetch_time
             )
-
             status_str = (
                 gtfs_realtime_pb2.VehiclePosition.VehicleStopStatus.Name(v.current_status)
                 if v.HasField("current_status")
@@ -62,14 +63,15 @@ def collect_vehicle_positions(fetch_time: str) -> list[dict]:
                 "current_stop_sequence": v.current_stop_sequence if v.HasField("current_stop_sequence") else None,
                 "current_status": status_str,
             })
-
-    # Sort deterministically by vehicle_id so array order never breaks Git diffs
     return sorted(records, key=lambda x: str(x.get("vehicle_id", "")))
 
 
-def collect_trip_delays(fetch_time: str) -> list[dict]:
+def collect_trip_delays() -> list[dict]:
+    url = FEEDS.get("trip_updates")
+    if not url:
+        return []
     try:
-        feed = fetch_protobuf(TRIP_UPDATES_URL)
+        feed = fetch_protobuf(url)
     except Exception as e:
         print(f"[Error] Failed to fetch Trip Updates: {e}")
         return []
@@ -90,13 +92,7 @@ def collect_trip_delays(fetch_time: str) -> list[dict]:
                     delay_sec = stu.departure.delay
 
                 if delay_sec is not None:
-                    if delay_sec > 60:
-                        status = "LATE"
-                    elif delay_sec < -60:
-                        status = "EARLY"
-                    else:
-                        status = "ON_TIME"
-
+                    status = "LATE" if delay_sec > 60 else ("EARLY" if delay_sec < -60 else "ON_TIME")
                     records.append({
                         "trip_id": trip_id,
                         "stop_sequence": stu.stop_sequence,
@@ -107,14 +103,15 @@ def collect_trip_delays(fetch_time: str) -> list[dict]:
                         "delay_minutes": round(delay_sec / 60.0, 2),
                         "status": status,
                     })
-
-    # Sort deterministically by trip_id and stop_sequence
     return sorted(records, key=lambda x: (str(x.get("trip_id", "")), x.get("stop_sequence", 0)))
 
 
 def collect_alerts() -> list[dict]:
+    url = FEEDS.get("alerts")
+    if not url:
+        return []
     try:
-        feed = fetch_protobuf(ALERTS_URL)
+        feed = fetch_protobuf(url)
     except Exception as e:
         print(f"[Error] Failed to fetch Alerts: {e}")
         return []
@@ -128,37 +125,23 @@ def collect_alerts() -> list[dict]:
             cause = gtfs_realtime_pb2.Alert.Cause.Name(a.cause) if a.cause else None
             effect = gtfs_realtime_pb2.Alert.Effect.Name(a.effect) if a.effect else None
 
-            if a.informed_entity:
-                for ie in a.informed_entity:
-                    records.append({
-                        "alert_id": entity.id,
-                        "route_id": ie.route_id if ie.HasField("route_id") else None,
-                        "stop_id": ie.stop_id if ie.HasField("stop_id") else None,
-                        "cause": cause,
-                        "effect": effect,
-                        "header": header,
-                        "description": description,
-                    })
-            else:
-                records.append({
-                    "alert_id": entity.id,
-                    "route_id": None,
-                    "stop_id": None,
-                    "cause": cause,
-                    "effect": effect,
-                    "header": header,
-                    "description": description,
-                })
-
+            records.append({
+                "alert_id": entity.id,
+                "cause": cause,
+                "effect": effect,
+                "header": header,
+                "description": description,
+            })
     return sorted(records, key=lambda x: str(x.get("alert_id", "")))
 
 
 if __name__ == "__main__":
     now_iso = datetime.now(timezone.utc).isoformat()
-    print(f"Executing KAT GTFS-RT JSON Snapshot at {now_iso}...")
+    agency = CONFIG.get("agency_name", "Transit Agency")
+    print(f"Scraping {agency} at {now_iso}...")
 
     vehicles = collect_vehicle_positions(now_iso)
-    delays = collect_trip_delays(now_iso)
+    delays = collect_trip_delays()
     alerts = collect_alerts()
 
     if vehicles:
@@ -168,4 +151,4 @@ if __name__ == "__main__":
     if alerts:
         save_json_snapshot(alerts, "data/alerts.json")
 
-    print(f"Successfully recorded snapshot ({len(vehicles)} vehicles, {len(delays)} delays, {len(alerts)} alerts).")
+    print("Snapshot updated successfully.")
