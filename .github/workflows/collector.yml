@@ -1,12 +1,7 @@
 name: GTFS-RT Collector
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
-
-permissions:
-  contents: write
+  workflow_dispatch: # Triggered via API by cron-job.org or manual runs
 
 jobs:
   scrape:
@@ -20,13 +15,11 @@ jobs:
           python-version: '3.11'
 
       - name: Install Dependencies
-        run: pip install requests gtfs-realtime-bindings
+        run: pip install requests boto3
 
-      - name: Run Collector
+      - name: Run Collector and Upload to B2
+        env:
+          B2_ENDPOINT_URL: ${{ secrets.B2_ENDPOINT_URL }}
+          B2_ACCESS_KEY_ID: ${{ secrets.B2_ACCESS_KEY_ID }}
+          B2_SECRET_ACCESS_KEY: ${{ secrets.B2_SECRET_ACCESS_KEY }}
         run: python collector.py
-
-      - name: Commit and Push Snapshot
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Automated GTFS-RT update [skip ci]"
-          file_pattern: "data/*.json"
