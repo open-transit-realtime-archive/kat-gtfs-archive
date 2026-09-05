@@ -2,7 +2,9 @@ name: GTFS-RT Collector
 
 on:
   workflow_dispatch: # Triggered via API by cron-job.org or manual runs
-
+  push:
+    branches: [ main ]
+    
 jobs:
   scrape:
     runs-on: ubuntu-latest
