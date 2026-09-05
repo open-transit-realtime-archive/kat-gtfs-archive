@@ -68,7 +68,7 @@ if __name__ == "__main__":
         endpoint_url=B2_ENDPOINT,
         aws_access_key_id=B2_KEY_ID,
         aws_secret_access_key=B2_SECRET_KEY,
-        config=Config(signature_version='s3v4') # <-- ADD THIS LINE
+        config=Config(signature_version='s3v4')
     )
 
     # 2. Loop over all configured feed
