@@ -1,0 +1,10 @@
+{
+  "agency_id": "knoxville_kat",
+  "agency_name": "Knoxville Area Transit",
+  "timezone": "America/New_York",
+  "feeds": {
+    "vehicle_positions": "https://Knoxville.Syncromatics.com/GTFS-rt/VehiclePositions",
+    "trip_updates": "https://Knoxville.Syncromatics.com/GTFS-rt/TripUpdates",
+    "alerts": "https://Knoxville.Syncromatics.com/GTFS-rt/Alerts"
+  }
+}
