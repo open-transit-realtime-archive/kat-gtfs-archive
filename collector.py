@@ -3,6 +3,7 @@ import json
 import os
 import requests
 import boto3
+from botocore.config import Config
 from datetime import datetime, timezone
 
 # --- Configuration & Credentials ---
@@ -61,15 +62,16 @@ if __name__ == "__main__":
     agency = CONFIG.get("agency_name", "Transit Agency")
     print(f"Scraping {agency} raw feeds at {now_dt.isoformat()}...")
 
-    # Initialize Boto3 S3 Client for Backblaze B2
+    # 1. Initialize Boto3 S3 Client with B2 specific config
     s3 = boto3.client(
         service_name="s3",
         endpoint_url=B2_ENDPOINT,
         aws_access_key_id=B2_KEY_ID,
         aws_secret_access_key=B2_SECRET_KEY,
+        config=Config(signature_version='s3v4') # <-- ADD THIS LINE
     )
 
-    # Loop over all configured feeds (vehicle_positions, trip_updates, alerts, etc.)
+    # 2. Loop over all configured feed
     for feed_type, url in FEEDS.items():
         if url:
             fetch_and_upload_raw_pb(s3, feed_type, url, now_dt)
